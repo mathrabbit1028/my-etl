@@ -24,16 +24,16 @@ function TopicForm({ onCreated }) {
   }
 
   return (
-    <div className="card" style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)', border: 'none', color: 'white' }}>
+    <div className="card">
       <h3 style={{ margin: '0 0 12px 0', fontSize: 16, fontWeight: 600 }}>➕ 새 토픽 추가</h3>
       <form onSubmit={create} className="row" style={{ gap: 12 }}>
         <input 
           placeholder="토픽 제목을 입력하세요" 
           value={title} 
           onChange={(e)=>setTitle(e.target.value)} 
-          style={{ flex: 1, background: 'rgba(255,255,255,0.9)', border: 'none' }} 
+          style={{ flex: 1 }} 
         />
-        <button type="submit" disabled={pending} style={{ background: 'white', color: 'var(--primary)', fontWeight: 600 }}>
+        <button type="submit" disabled={pending}>
           {pending ? '추가 중...' : '추가'}
         </button>
       </form>
@@ -106,12 +106,8 @@ function MaterialUploader({ topicId, onChanged }) {
         <button 
           type="submit" 
           disabled={busy || !file}
-          style={{ 
-            width: '100%',
-            padding: '10px 16px',
-            background: file ? 'var(--success)' : 'var(--gray-300)',
-            fontWeight: 600
-          }}
+          className="btn-block btn-success"
+          style={{ padding: '10px 16px', fontWeight: 600 }}
         >
           {busy ? '⏳ 업로드 중...' : file ? '📤 업로드' : '파일을 선택하세요'}
         </button>
@@ -153,18 +149,11 @@ function TopicCard({ topic, onChanged }) {
       }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 20 }}>📁 {topic.title}</h2>
-          <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--gray-600)' }}>
+          <p className="small muted" style={{ margin: '4px 0 0 0' }}>
             {topic.materials.length}개 자료 · 마지막 수정: {new Date(topic.created_at).toLocaleDateString('ko-KR')}
           </p>
         </div>
-        <button 
-          onClick={delTopic} 
-          style={{ 
-            background: 'var(--danger-light)',
-            color: 'var(--danger-dark)',
-            padding: '8px 16px'
-          }}
-        >
+        <button onClick={delTopic} className="btn-danger-light" style={{ padding: '8px 16px' }}>
           🗑️ 삭제
         </button>
       </div>
@@ -174,30 +163,19 @@ function TopicCard({ topic, onChanged }) {
       </div>
 
       {topic.materials.length > 0 && (
-        <ul>
+        <ul className="materials">
           {topic.materials.map((m, idx) => (
             <li key={m.id}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="row-between">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-                  <div style={{ 
-                    width: 36, 
-                    height: 36, 
-                    borderRadius: 6,
-                    background: m.file_type?.includes('pdf') ? '#fee2e2' : 
-                               m.file_type?.includes('image') ? '#dbeafe' : '#f3f4f6',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 16,
-                    flexShrink: 0
-                  }}>
+                  <div className={`file-icon ${m.file_type?.includes('pdf') ? 'file-icon--pdf' : m.file_type?.includes('image') ? 'file-icon--image' : 'file-icon--other'}`}>
                     {m.file_type?.includes('pdf') ? '📄' : 
                      m.file_type?.includes('image') ? '🖼️' : 
                      m.file_type?.includes('video') ? '🎥' : '📎'}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 500, marginBottom: 2 }}>{m.title}</div>
-                    <div style={{ fontSize: 13, color: 'var(--gray-600)' }}>
+                    <div className="small muted">
                       {m.file_type?.split('/')[1]?.toUpperCase() || 'FILE'}
                       {m.file_size && ` · ${(m.file_size / 1024).toFixed(0)}KB`}
                     </div>
@@ -212,15 +190,7 @@ function TopicCard({ topic, onChanged }) {
                   <a href={m.blob_url} download={m.file_name} rel="noreferrer" style={{ fontSize: 14 }}>
                     ⬇️ 다운로드
                   </a>
-                  <button 
-                    onClick={()=>delMaterial(m.id)} 
-                    style={{ 
-                      background: 'var(--danger-light)',
-                      color: 'var(--danger-dark)',
-                      padding: '6px 12px',
-                      fontSize: 14
-                    }}
-                  >
+                  <button onClick={()=>delMaterial(m.id)} className="btn-sm btn-danger-light">
                     🗑️
                   </button>
                 </div>
@@ -251,20 +221,14 @@ export default function AdminClient({ initialTopics }) {
 
   return (
     <div className="grid" style={{ gap: 20, marginTop: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-header">
         <div>
-          <h1 style={{ margin: 0, fontSize: 28 }}>🔧 관리자 대시보드</h1>
-          <p style={{ margin: '4px 0 0 0', color: 'var(--gray-600)', fontSize: 14 }}>
+          <h1 style={{ margin: 0 }}>🔧 관리자 대시보드</h1>
+          <p className="muted small" style={{ margin: '4px 0 0 0' }}>
             토픽 {topics.length}개 · 전체 자료 {topics.reduce((sum, t) => sum + t.materials.length, 0)}개
           </p>
         </div>
-        <button 
-          onClick={logout} 
-          style={{ 
-            background: 'var(--gray-700)',
-            padding: '10px 20px'
-          }}
-        >
+        <button onClick={logout} className="btn-dark" style={{ padding: '10px 20px' }}>
           🚪 로그아웃
         </button>
       </div>
