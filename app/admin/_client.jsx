@@ -108,7 +108,7 @@ function TopicCard({ topic, onChanged }) {
               {m.file_type?.includes('pdf') && (
                 <>
                   {' '}|{' '}
-                  <a href={`/viewer?url=${encodeURIComponent(m.blob_url)}`} target="_blank">PDF 보기</a>
+                  <a href={`/viewer?id=${m.id}`} target="_blank">PDF 보기</a>
                 </>
               )}
             </div>
