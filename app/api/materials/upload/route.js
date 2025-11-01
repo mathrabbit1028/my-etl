@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { isAdminFromRequest } from '../../../../lib/auth';
 import { put } from '@vercel/blob';
@@ -16,7 +17,8 @@ export async function POST(request) {
   }
 
   const contentType = file.type || 'application/octet-stream';
-  const uploaded = await put(file.name, file, { access: 'public', contentType });
+  const token = process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL_BLOB_READ_WRITE_TOKEN;
+  const uploaded = await put(file.name, file, { access: 'public', contentType, token });
   const material = await createMaterial({
     topicId,
     title,

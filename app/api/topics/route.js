@@ -1,3 +1,4 @@
+export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { listTopicsWithMaterials, createTopic } from '../../../lib/db';
 import { isAdminFromRequest } from '../../../lib/auth';

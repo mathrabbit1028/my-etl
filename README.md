@@ -26,7 +26,10 @@ ADMIN_PASSWORD=change-me
 # JWT signing secret (random long string)
 AUTH_SECRET=your-long-random-secret
 
-# Vercel Postgres connection (set by Vercel integration)
+# Database connection
+# If using Marketplace (Neon, Prisma Postgres, etc.) you'll get DATABASE_URL
+DATABASE_URL=postgres://...
+# If using Vercel Postgres, you may see POSTGRES_URL
 POSTGRES_URL=postgres://...
 
 # Vercel Blob token (set by Vercel integration)
@@ -34,7 +37,7 @@ BLOB_READ_WRITE_TOKEN=...
 # or VERCEL_BLOB_READ_WRITE_TOKEN depending on your setup
 ```
 
-On Vercel, these will be configured automatically when you add the Postgres and Blob integrations. Add `ADMIN_PASSWORD` and `AUTH_SECRET` manually.
+On Vercel, DATABASE_URL comes from Marketplace providers (e.g. Neon). POSTGRES_URL may come from Vercel Postgres. Add `ADMIN_PASSWORD` and `AUTH_SECRET` manually. For Blob, create a Store and a Read/Write token and add it as `BLOB_READ_WRITE_TOKEN`.
 
 ## Local Development
 
