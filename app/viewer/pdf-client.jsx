@@ -1,5 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from 'react';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Use local worker bundled with pdfjs-dist
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url
+  ).toString();
+}
 
 export default function PdfClient({ url }) {
   const containerRef = useRef(null);
@@ -11,9 +20,6 @@ export default function PdfClient({ url }) {
 
     async function load() {
       try {
-        const pdfjsLib = await import('pdfjs-dist');
-        const workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
-        pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
         const loadingTask = pdfjsLib.getDocument({ url });
         const pdf = await loadingTask.promise;
         const pages = pdf.numPages;
@@ -39,10 +45,17 @@ export default function PdfClient({ url }) {
   }, [url]);
 
   return (
-    <div className="grid" style={{ gap: 12 }}>
-      <h1>PDF Viewer</h1>
-      {error && <div className="card" style={{ color: 'crimson' }}>{error}</div>}
-      <div ref={containerRef} className="grid" style={{ gap: 12 }} />
+    <div className="grid" style={{ gap: 16, marginTop: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1 style={{ margin: 0 }}>📄 PDF Viewer</h1>
+        <a href="javascript:history.back()" style={{ fontSize: 14 }}>← 뒤로가기</a>
+      </div>
+      {error && (
+        <div className="card" style={{ background: 'var(--danger-light)', color: 'var(--danger-dark)', borderColor: 'var(--danger)' }}>
+          ⚠️ {error}
+        </div>
+      )}
+      <div ref={containerRef} className="grid" style={{ gap: 16 }} />
     </div>
   );
 }

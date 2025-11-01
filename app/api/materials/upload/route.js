@@ -10,10 +10,15 @@ export async function POST(request) {
 
   const form = await request.formData();
   const topicId = Number(form.get('topicId'));
-  const title = String(form.get('title') || '').trim();
+  let title = String(form.get('title') || '').trim();
   const file = form.get('file');
-  if (!topicId || !title || !file || typeof file.arrayBuffer !== 'function') {
+  if (!topicId || !file || typeof file.arrayBuffer !== 'function') {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+  }
+
+  // 제목이 비어있으면 파일 이름 사용
+  if (!title) {
+    title = file.name;
   }
 
   const contentType = file.type || 'application/octet-stream';
