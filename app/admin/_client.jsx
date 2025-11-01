@@ -70,14 +70,22 @@ function TopicCard({ topic, onChanged }) {
   async function delTopic() {
     if (!confirm('토픽을 삭제하시겠습니까? 포함된 자료도 함께 삭제됩니다.')) return;
     const res = await fetch(`/api/topics/${topic.id}`, { method: 'DELETE' });
-    if (!res.ok) return alert('삭제 실패');
+    if (!res.ok) {
+      let msg = '삭제 실패';
+      try { const j = await res.json(); if (j?.error) msg += `: ${j.error}`; } catch {}
+      return alert(msg);
+    }
     onChanged && onChanged();
   }
 
   async function delMaterial(id) {
     if (!confirm('자료를 삭제하시겠습니까?')) return;
     const res = await fetch(`/api/materials/${id}`, { method: 'DELETE' });
-    if (!res.ok) return alert('삭제 실패');
+    if (!res.ok) {
+      let msg = '삭제 실패';
+      try { const j = await res.json(); if (j?.error) msg += `: ${j.error}`; } catch {}
+      return alert(msg);
+    }
     onChanged && onChanged();
   }
 
