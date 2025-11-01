@@ -18,15 +18,22 @@ export async function POST(request) {
 
   const contentType = file.type || 'application/octet-stream';
   const token = process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL_BLOB_READ_WRITE_TOKEN;
-  const uploaded = await put(file.name, file, { access: 'public', contentType, token });
-  const material = await createMaterial({
-    topicId,
-    title,
-    fileName: file.name,
-    fileType: contentType,
-    fileSize: file.size || null,
-    blobUrl: uploaded.url,
-  });
+  if (!token) {
+    return NextResponse.json({ error: 'Missing BLOB_READ_WRITE_TOKEN. Create a Blob Store token and add it to project env.' }, { status: 500 });
+  }
 
-  return NextResponse.json({ material });
+  try {
+    const uploaded = await put(file.name, file, { access: 'public', contentType, token });
+    const material = await createMaterial({
+      topicId,
+      title,
+      fileName: file.name,
+      fileType: contentType,
+      fileSize: file.size || null,
+      blobUrl: uploaded.url,
+    });
+    return NextResponse.json({ material });
+  } catch (e) {
+    return NextResponse.json({ error: e?.message || 'Upload failed' }, { status: 500 });
+  }
 }
