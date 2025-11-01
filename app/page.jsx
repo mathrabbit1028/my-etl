@@ -40,14 +40,14 @@ export default async function HomePage() {
                       </span>
                     </div>
                     <div style={{ display: 'flex', gap: 12 }}>
-                      <a href={m.blob_url} download={m.file_name} rel="noreferrer" style={{ fontSize: 14 }}>
-                        ⬇️ 다운로드
-                      </a>
                       {m.file_type?.includes('pdf') && (
-                        <a href={`/viewer?id=${m.id}`} target="_blank" style={{ fontSize: 14 }}>
+                        <a href={`/viewer?id=${m.id}`} style={{ fontSize: 14 }}>
                           👁️ PDF 보기
                         </a>
                       )}
+                      <a href={m.blob_url} download={m.file_name} rel="noreferrer" style={{ fontSize: 14 }}>
+                        ⬇️ 다운로드
+                      </a>
                     </div>
                   </div>
                 </li>

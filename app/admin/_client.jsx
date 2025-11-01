@@ -144,23 +144,15 @@ function TopicCard({ topic, onChanged }) {
   }
 
   return (
-    <section className="card" style={{ 
-      marginBottom: 20,
-      border: '2px solid var(--gray-200)',
-      overflow: 'hidden'
-    }}>
+    <section className="card" style={{ marginBottom: 20 }}>
       <div style={{ 
-        padding: 20, 
-        background: 'linear-gradient(to right, var(--gray-50), white)',
-        borderBottom: '1px solid var(--gray-200)',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center'
+        alignItems: 'center',
+        marginBottom: 16
       }}>
         <div>
-          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: 20 }}>
-            📁 {topic.title}
-          </h2>
+          <h2 style={{ margin: 0, fontSize: 20 }}>📁 {topic.title}</h2>
           <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--gray-600)' }}>
             {topic.materials.length}개 자료 · 마지막 수정: {new Date(topic.created_at).toLocaleDateString('ko-KR')}
           </p>
@@ -168,9 +160,8 @@ function TopicCard({ topic, onChanged }) {
         <button 
           onClick={delTopic} 
           style={{ 
-            background: 'transparent',
-            color: 'var(--danger)',
-            border: '1px solid var(--danger)',
+            background: 'var(--danger-light)',
+            color: 'var(--danger-dark)',
             padding: '8px 16px'
           }}
         >
@@ -178,50 +169,26 @@ function TopicCard({ topic, onChanged }) {
         </button>
       </div>
       
-      <div style={{ padding: 20, background: 'var(--gray-50)' }}>
+      <div style={{ marginBottom: 16 }}>
         <MaterialUploader topicId={topic.id} onChanged={onChanged} />
       </div>
 
       {topic.materials.length > 0 && (
-        <div style={{ padding: '0 20px 20px 20px' }}>
-          <div style={{ 
-            display: 'grid', 
-            gap: 8,
-            marginTop: 12
-          }}>
-            {topic.materials.map((m, idx) => (
-              <div 
-                key={m.id} 
-                style={{ 
-                  padding: 16,
-                  background: 'white',
-                  border: '1px solid var(--gray-200)',
-                  borderRadius: 8,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--primary)';
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(59, 130, 246, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--gray-200)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <ul>
+          {topic.materials.map((m, idx) => (
+            <li key={m.id}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
                   <div style={{ 
-                    width: 40, 
-                    height: 40, 
-                    borderRadius: 8,
+                    width: 36, 
+                    height: 36, 
+                    borderRadius: 6,
                     background: m.file_type?.includes('pdf') ? '#fee2e2' : 
                                m.file_type?.includes('image') ? '#dbeafe' : '#f3f4f6',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: 18,
+                    fontSize: 16,
                     flexShrink: 0
                   }}>
                     {m.file_type?.includes('pdf') ? '📄' : 
@@ -229,71 +196,38 @@ function TopicCard({ topic, onChanged }) {
                      m.file_type?.includes('video') ? '🎥' : '📎'}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 15 }}>{m.title}</div>
-                    <div style={{ fontSize: 12, color: 'var(--gray-600)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <span>{m.file_name}</span>
-                      <span>·</span>
-                      <span>{m.file_type?.split('/')[1]?.toUpperCase() || 'FILE'}</span>
-                      {m.file_size && (
-                        <>
-                          <span>·</span>
-                          <span>{(m.file_size / 1024).toFixed(0)}KB</span>
-                        </>
-                      )}
-                      <span>·</span>
-                      <span>{new Date(m.created_at).toLocaleDateString('ko-KR')}</span>
+                    <div style={{ fontWeight: 500, marginBottom: 2 }}>{m.title}</div>
+                    <div style={{ fontSize: 13, color: 'var(--gray-600)' }}>
+                      {m.file_type?.split('/')[1]?.toUpperCase() || 'FILE'}
+                      {m.file_size && ` · ${(m.file_size / 1024).toFixed(0)}KB`}
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                  <a 
-                    href={m.blob_url} 
-                    download={m.file_name} 
-                    rel="noreferrer" 
-                    style={{ 
-                      padding: '6px 12px',
-                      background: 'var(--gray-100)',
-                      borderRadius: 6,
-                      fontSize: 13,
-                      fontWeight: 500,
-                      textDecoration: 'none'
-                    }}
-                  >
-                    ⬇️
-                  </a>
+                <div style={{ display: 'flex', gap: 12 }}>
                   {m.file_type?.includes('pdf') && (
-                    <a 
-                      href={`/viewer?id=${m.id}`} 
-                      target="_blank" 
-                      style={{ 
-                        padding: '6px 12px',
-                        background: 'var(--gray-100)',
-                        borderRadius: 6,
-                        fontSize: 13,
-                        fontWeight: 500,
-                        textDecoration: 'none'
-                      }}
-                    >
-                      👁️
+                    <a href={`/viewer?id=${m.id}`} style={{ fontSize: 14 }}>
+                      👁️ PDF 보기
                     </a>
                   )}
+                  <a href={m.blob_url} download={m.file_name} rel="noreferrer" style={{ fontSize: 14 }}>
+                    ⬇️ 다운로드
+                  </a>
                   <button 
                     onClick={()=>delMaterial(m.id)} 
                     style={{ 
-                      background: 'transparent',
-                      color: 'var(--danger)',
+                      background: 'var(--danger-light)',
+                      color: 'var(--danger-dark)',
                       padding: '6px 12px',
-                      border: '1px solid var(--danger-light)',
-                      fontSize: 13
+                      fontSize: 14
                     }}
                   >
                     🗑️
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );
@@ -316,20 +250,10 @@ export default function AdminClient({ initialTopics }) {
   }
 
   return (
-    <div className="grid" style={{ gap: 24, marginTop: 24 }}>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        padding: '20px 24px',
-        background: 'white',
-        borderRadius: 12,
-        boxShadow: 'var(--shadow)'
-      }}>
+    <div className="grid" style={{ gap: 20, marginTop: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 28, display: 'flex', alignItems: 'center', gap: 12 }}>
-            🔧 관리자 대시보드
-          </h1>
+          <h1 style={{ margin: 0, fontSize: 28 }}>🔧 관리자 대시보드</h1>
           <p style={{ margin: '4px 0 0 0', color: 'var(--gray-600)', fontSize: 14 }}>
             토픽 {topics.length}개 · 전체 자료 {topics.reduce((sum, t) => sum + t.materials.length, 0)}개
           </p>
@@ -338,9 +262,6 @@ export default function AdminClient({ initialTopics }) {
           onClick={logout} 
           style={{ 
             background: 'var(--gray-700)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
             padding: '10px 20px'
           }}
         >
@@ -354,8 +275,7 @@ export default function AdminClient({ initialTopics }) {
         <div className="card" style={{ 
           textAlign: 'center', 
           padding: 60, 
-          background: 'white',
-          border: '2px dashed var(--gray-300)'
+          background: 'white'
         }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>📚</div>
           <p style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--gray-900)' }}>
