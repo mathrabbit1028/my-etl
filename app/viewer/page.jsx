@@ -4,8 +4,9 @@ import PdfClient from './pdf-client';
 import { getMaterialById } from '../../lib/db';
 
 export default async function PdfViewerPage({ searchParams }) {
-  let url = searchParams?.url;
-  const idParam = searchParams?.id;
+  const resolvedParams = await searchParams;
+  let url = resolvedParams?.url;
+  const idParam = resolvedParams?.id;
   if (!url && idParam) {
     const id = parseInt(idParam, 10);
     if (Number.isInteger(id) && id > 0) {
