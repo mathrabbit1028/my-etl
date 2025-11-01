@@ -116,8 +116,50 @@ function MaterialUploader({ topicId, onChanged }) {
   );
 }
 
-function TopicCard({ topic, onChanged }) {
+function TopicCard({ topic, onChanged, onMoveUp, onMoveDown, canMoveUp, canMoveDown }) {
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(topic.title);
+  const [saving, setSaving] = useState(false);
+
   async function delTopic() {
+    if (!confirm('토픽을 삭제하시겠습니까? 포함된 자료도 함께 삭제됩니다.')) return;
+    const res = await fetch(`/api/topics/${topic.id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      let msg = '삭제 실패';
+      try { const j = await res.json(); if (j?.error) msg += `: ${j.error}`; } catch {}
+      return alert(msg);
+    }
+    onChanged && onChanged();
+  }
+
+  async function saveTitle() {
+    if (!editTitle.trim()) {
+      alert('제목을 입력하세요');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/topics/${topic.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: editTitle.trim() })
+      });
+      if (!res.ok) throw new Error('수정 실패');
+      setEditing(false);
+      onChanged && onChanged();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function cancelEdit() {
+    setEditTitle(topic.title);
+    setEditing(false);
+  }
+
+  async function delMaterial(id) {
     if (!confirm('토픽을 삭제하시겠습니까? 포함된 자료도 함께 삭제됩니다.')) return;
     const res = await fetch(`/api/topics/${topic.id}`, { method: 'DELETE' });
     if (!res.ok) {
@@ -147,15 +189,50 @@ function TopicCard({ topic, onChanged }) {
         alignItems: 'center',
         marginBottom: 16
       }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20 }}>📁 {topic.title}</h2>
+        <div style={{ flex: 1 }}>
+          {editing ? (
+            <div className="row" style={{ gap: 8 }}>
+              <input 
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                style={{ flex: 1, maxWidth: 400, fontSize: 16, fontWeight: 600 }}
+                autoFocus
+              />
+              <button onClick={saveTitle} disabled={saving} style={{ padding: '6px 12px', fontSize: 14 }}>
+                {saving ? '⏳' : '✓ 저장'}
+              </button>
+              <button onClick={cancelEdit} className="btn-danger-light btn-sm">
+                ✕ 취소
+              </button>
+            </div>
+          ) : (
+            <div>
+              <h2 style={{ margin: 0, fontSize: 20, display: 'inline-block', marginRight: 12 }}>
+                📁 {topic.title}
+              </h2>
+              <button 
+                onClick={() => setEditing(true)} 
+                style={{ fontSize: 13, padding: '4px 10px', background: 'var(--gray-100)', color: 'var(--gray-700)' }}
+              >
+                ✏️ 수정
+              </button>
+            </div>
+          )}
           <p className="small muted" style={{ margin: '4px 0 0 0' }}>
             {topic.materials.length}개 자료 · 마지막 수정: {new Date(topic.created_at).toLocaleDateString('ko-KR')}
           </p>
         </div>
-        <button onClick={delTopic} className="btn-danger-light" style={{ padding: '8px 16px' }}>
-          🗑️ 삭제
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onMoveUp} disabled={!canMoveUp} className="btn-sm" style={{ background: 'var(--gray-100)', color: 'var(--gray-700)' }}>
+            ↑
+          </button>
+          <button onClick={onMoveDown} disabled={!canMoveDown} className="btn-sm" style={{ background: 'var(--gray-100)', color: 'var(--gray-700)' }}>
+            ↓
+          </button>
+          <button onClick={delTopic} className="btn-danger-light" style={{ padding: '8px 16px' }}>
+            🗑️ 삭제
+          </button>
+        </div>
       </div>
       
       <div style={{ marginBottom: 16 }}>
@@ -206,6 +283,7 @@ function TopicCard({ topic, onChanged }) {
 export default function AdminClient({ initialTopics }) {
   const router = useRouter();
   const [topics, setTopics] = useState(initialTopics);
+  const [reordering, setReordering] = useState(false);
 
   async function refresh() {
     const res = await fetch('/api/topics');
@@ -217,6 +295,39 @@ export default function AdminClient({ initialTopics }) {
   async function logout() {
     await fetch('/api/admin/logout', { method: 'POST' });
     window.location.href = '/';
+  }
+
+  async function moveTopicUp(index) {
+    if (index <= 0) return;
+    setReordering(true);
+    const newOrder = [...topics];
+    [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+    setTopics(newOrder);
+    await saveTopicOrder(newOrder);
+    setReordering(false);
+  }
+
+  async function moveTopicDown(index) {
+    if (index >= topics.length - 1) return;
+    setReordering(true);
+    const newOrder = [...topics];
+    [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+    setTopics(newOrder);
+    await saveTopicOrder(newOrder);
+    setReordering(false);
+  }
+
+  async function saveTopicOrder(orderedTopics) {
+    const topicIds = orderedTopics.map(t => t.id);
+    const res = await fetch('/api/topics/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topicIds })
+    });
+    if (!res.ok) {
+      alert('순서 변경 실패');
+      await refresh();
+    }
   }
 
   return (
@@ -250,7 +361,17 @@ export default function AdminClient({ initialTopics }) {
           </p>
         </div>
       ) : (
-        topics.map(t => <TopicCard key={t.id} topic={t} onChanged={refresh} />)
+        topics.map((t, idx) => (
+          <TopicCard 
+            key={t.id} 
+            topic={t} 
+            onChanged={refresh}
+            onMoveUp={() => moveTopicUp(idx)}
+            onMoveDown={() => moveTopicDown(idx)}
+            canMoveUp={idx > 0 && !reordering}
+            canMoveDown={idx < topics.length - 1 && !reordering}
+          />
+        ))
       )}
     </div>
   );
