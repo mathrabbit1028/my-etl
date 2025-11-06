@@ -1,6 +1,6 @@
 export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
-import { deleteMaterial } from '../../../../lib/db';
+import { deleteMaterial, moveMaterialToOwner } from '../../../../lib/db';
 import { isAdminFromRequest } from '../../../../lib/auth';
 import { del } from '@vercel/blob';
 
@@ -24,4 +24,21 @@ export async function DELETE(request, { params }) {
   } catch (e) {
     return NextResponse.json({ error: e?.message || 'Delete failed' }, { status: 500 });
   }
+}
+
+export async function PATCH(request, { params }) {
+  const admin = await isAdminFromRequest(request);
+  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const resolved = await params;
+  const id = Number(resolved.id);
+  if (!id) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+  const body = await request.json();
+  const owner = String(body?.owner || '').trim();
+  if (!owner) return NextResponse.json({ error: 'owner required' }, { status: 400 });
+  try {
+    await moveMaterialToOwner(id, owner);
+  } catch (e) {
+    return NextResponse.json({ error: e?.message || 'Move failed' }, { status: 400 });
+  }
+  return NextResponse.json({ ok: true });
 }

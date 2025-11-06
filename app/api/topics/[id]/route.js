@@ -1,6 +1,6 @@
 export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
-import { deleteTopic, updateTopicTitle } from '../../../../lib/db';
+import { deleteTopic, updateTopicTitle, updateTopicOwner } from '../../../../lib/db';
 import { isAdminFromRequest } from '../../../../lib/auth';
 
 export async function DELETE(request, { params }) {
@@ -20,10 +20,19 @@ export async function PATCH(request, { params }) {
   const id = Number(resolvedParams.id);
   if (!id) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
   const body = await request.json();
-  const { title } = body;
-  if (!title || !title.trim()) {
-    return NextResponse.json({ error: 'Title required' }, { status: 400 });
+  const { title, owner } = body;
+  if (!title && !owner) {
+    return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
   }
-  const updated = await updateTopicTitle(id, title.trim());
-  return NextResponse.json({ topic: updated });
+  if (title && title.trim()) {
+    await updateTopicTitle(id, title.trim());
+  }
+  if (owner && String(owner).trim()) {
+    try {
+      await updateTopicOwner(id, String(owner).trim());
+    } catch (e) {
+      return NextResponse.json({ error: e?.message || 'Owner update failed' }, { status: 400 });
+    }
+  }
+  return NextResponse.json({ ok: true });
 }

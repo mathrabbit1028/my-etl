@@ -23,13 +23,8 @@ export default async function HomePage({ searchParams }) {
           <div style={{ fontWeight: 600, marginBottom: 8 }}>사람</div>
           <div className="grid" style={{ gap: 8 }}>
             {owners.map(o => (
-              <a key={o.id} href={`/?owner=${o.slug}`} style={{
-                padding: '8px 10px',
-                borderRadius: 6,
-                background: o.slug === owner ? 'var(--gray-100)' : 'transparent',
-                color: 'var(--gray-900)'
-              }}>
-                {o.name}
+              <a key={o.id} href={`/?owner=${o.slug}`} className={`owner-item ${o.slug===owner ? 'active' : ''}`}>
+                {o.slug === 'default' ? '미지정' : o.name}
               </a>
             ))}
           </div>

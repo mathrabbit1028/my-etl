@@ -116,10 +116,11 @@ function MaterialUploader({ topicId, onChanged }) {
   );
 }
 
-function TopicCard({ topic, onChanged, onMoveUp, onMoveDown, canMoveUp, canMoveDown }) {
+function TopicCard({ topic, onChanged, onMoveUp, onMoveDown, canMoveUp, canMoveDown, owners, ownerSlug }) {
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(topic.title);
   const [saving, setSaving] = useState(false);
+  const [changingOwner, setChangingOwner] = useState(false);
 
   async function delTopic() {
     if (!confirm('토픽을 삭제하시겠습니까? 포함된 자료도 함께 삭제됩니다.')) return;
@@ -181,6 +182,24 @@ function TopicCard({ topic, onChanged, onMoveUp, onMoveDown, canMoveUp, canMoveD
     onChanged && onChanged();
   }
 
+  async function changeTopicOwner(newOwner) {
+    if (!newOwner) return;
+    setChangingOwner(true);
+    try {
+      const res = await fetch(`/api/topics/${topic.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owner: newOwner })
+      });
+      if (!res.ok) throw new Error('사람 변경 실패');
+      onChanged && onChanged();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setChangingOwner(false);
+    }
+  }
+
   return (
     <section className="card" style={{ marginBottom: 20 }}>
       <div style={{ 
@@ -222,7 +241,18 @@ function TopicCard({ topic, onChanged, onMoveUp, onMoveDown, canMoveUp, canMoveD
             {topic.materials.length}개 자료 · 마지막 수정: {new Date(topic.created_at).toLocaleDateString('ko-KR')}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <select 
+            value={ownerSlug}
+            onChange={(e)=>changeTopicOwner(e.target.value)}
+            disabled={changingOwner}
+            style={{ padding: '6px 8px', border: '1px solid var(--gray-300)', borderRadius: 6, fontSize: 13 }}
+            title="이 토픽의 사람 변경"
+          >
+            {owners.map(o => (
+              <option key={o.id} value={o.slug}>{o.slug==='default' ? '미지정' : o.name}</option>
+            ))}
+          </select>
           <button onClick={onMoveUp} disabled={!canMoveUp} className="btn-sm" style={{ background: 'var(--gray-100)', color: 'var(--gray-700)' }}>
             ↑
           </button>
@@ -258,7 +288,7 @@ function TopicCard({ topic, onChanged, onMoveUp, onMoveDown, canMoveUp, canMoveD
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   {m.file_type?.includes('pdf') && (
                     <a href={`/viewer?id=${m.id}`} style={{ fontSize: 14 }}>
                       👁️ PDF 보기
@@ -267,6 +297,7 @@ function TopicCard({ topic, onChanged, onMoveUp, onMoveDown, canMoveUp, canMoveD
                   <a href={m.blob_url} download={m.file_name} rel="noreferrer" style={{ fontSize: 14 }}>
                     ⬇️ 다운로드
                   </a>
+                  <OwnerSelectForMaterial owners={owners} currentOwner={ownerSlug} materialId={m.id} onChanged={onChanged} />
                   <button onClick={()=>delMaterial(m.id)} className="btn-sm btn-danger-light">
                     🗑️
                   </button>
@@ -277,6 +308,37 @@ function TopicCard({ topic, onChanged, onMoveUp, onMoveDown, canMoveUp, canMoveD
         </ul>
       )}
     </section>
+  );
+}
+
+function OwnerSelectForMaterial({ owners, currentOwner, materialId, onChanged }) {
+  const [busy, setBusy] = useState(false);
+
+  async function onChangeOwner(e) {
+    const newOwner = e.target.value;
+    if (!newOwner || newOwner === currentOwner) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/materials/${materialId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owner: newOwner })
+      });
+      if (!res.ok) throw new Error('사람 변경 실패');
+      onChanged && onChanged();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <select value={currentOwner} onChange={onChangeOwner} disabled={busy} style={{ padding: '6px 8px', border: '1px solid var(--gray-300)', borderRadius: 6, fontSize: 13 }} title="파일의 사람 변경 (새 사람의 미분류로 이동)">
+      {owners.map(o => (
+        <option key={o.id} value={o.slug}>{o.slug==='default' ? '미지정' : o.name}</option>
+      ))}
+    </select>
   );
 }
 
@@ -360,13 +422,7 @@ function OwnerItem({ o, active, onSelect, onChanged }) {
 
   return (
     <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-      <a href={`#`} onClick={(e)=>{ e.preventDefault(); onSelect(o.slug); }} style={{
-        padding: '8px 10px',
-        borderRadius: 6,
-        background: active ? 'var(--gray-100)' : 'transparent',
-        color: 'var(--gray-900)',
-        flex: 1
-      }}>
+      <a href={`#`} onClick={(e)=>{ e.preventDefault(); onSelect(o.slug); }} className={`owner-item ${active ? 'active' : ''}`} style={{ flex: 1 }}>
         {editing ? (
           <form onSubmit={save} className="row" style={{ gap: 6 }}>
             <input value={name} onChange={(e)=>setName(e.target.value)} style={{ flex: 1 }} />
@@ -374,7 +430,7 @@ function OwnerItem({ o, active, onSelect, onChanged }) {
             <button type="button" className="btn-sm btn-danger-light" onClick={()=>{ setEditing(false); setName(o.name); }}>✕</button>
           </form>
         ) : (
-          <span>{o.name}</span>
+          <span>{isDefault ? '미지정' : o.name}</span>
         )}
       </a>
       {!editing && (
@@ -394,12 +450,19 @@ export default function AdminClient({ initialOwners = [], initialOwner = 'defaul
   const [owner, setOwner] = useState(initialOwner);
   const [reordering, setReordering] = useState(false);
 
-  async function refresh() {
-    const res = await fetch(`/api/topics?owner=${owner}`);
+  async function refresh(nextOwner) {
+    const current = nextOwner || owner;
+    const res = await fetch(`/api/topics?owner=${current}`);
     const data = await res.json();
     setTopics(data.topics || []);
     router.refresh();
   }
+
+  // Auto-refresh when selected owner changes to avoid double-click issue
+  React.useEffect(() => {
+    (async () => { await refresh(owner); })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [owner]);
 
   async function logout() {
     await fetch('/api/admin/logout', { method: 'POST' });
@@ -462,8 +525,8 @@ export default function AdminClient({ initialOwners = [], initialOwner = 'defaul
                 key={o.id} 
                 o={o} 
                 active={o.slug === owner} 
-                onSelect={(slug)=>{ setOwner(slug); history.replaceState(null, '', `/admin?owner=${slug}`); refresh(); }} 
-                onChanged={async ()=>{ const r = await fetch('/api/owners'); const j = await r.json(); setOwners(j.owners||[]); if (!j.owners?.some(ow=>ow.slug===owner)) { setOwner('default'); history.replaceState(null, '', `/admin?owner=default`); } await refresh(); }} 
+                onSelect={(slug)=>{ setOwner(slug); history.replaceState(null, '', `/admin?owner=${slug}`); }} 
+                onChanged={async ()=>{ const r = await fetch('/api/owners'); const j = await r.json(); setOwners(j.owners||[]); if (!j.owners?.some(ow=>ow.slug===owner)) { setOwner('default'); history.replaceState(null, '', `/admin?owner=default`); } }} 
               />
             ))}
           </div>
@@ -488,11 +551,13 @@ export default function AdminClient({ initialOwners = [], initialOwner = 'defaul
               <TopicCard 
                 key={t.id} 
                 topic={t} 
-                onChanged={refresh}
+                onChanged={()=>refresh(owner)}
                 onMoveUp={() => moveTopicUp(idx)}
                 onMoveDown={() => moveTopicDown(idx)}
                 canMoveUp={idx > 0 && !reordering}
                 canMoveDown={idx < topics.length - 1 && !reordering}
+                owners={owners}
+                ownerSlug={owner}
               />
             ))
           )}
