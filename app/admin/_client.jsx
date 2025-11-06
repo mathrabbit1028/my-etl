@@ -1,5 +1,5 @@
 "use client";
-import { useOptimistic, useState, useTransition } from 'react';
+import { useOptimistic, useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 function TopicForm({ onCreated, owner = 'default' }) {
@@ -459,7 +459,7 @@ export default function AdminClient({ initialOwners = [], initialOwner = 'defaul
   }
 
   // Auto-refresh when selected owner changes to avoid double-click issue
-  React.useEffect(() => {
+  useEffect(() => {
     (async () => { await refresh(owner); })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [owner]);
