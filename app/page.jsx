@@ -1,4 +1,3 @@
-import './globals.css';
 import { listTopicsWithMaterials, listOwners } from '../lib/db';
 
 export const dynamic = 'force-dynamic';
