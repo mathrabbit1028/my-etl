@@ -201,7 +201,8 @@ select {
 
 input[type="text"],
 input[type="password"],
-input[type="file"] {
+input[type="file"],
+input:not([type]) {
   padding: 8px 12px;
   border: 1px solid var(--gray-300);
   border-radius: 6px;
@@ -210,7 +211,8 @@ input[type="file"] {
 }
 
 input[type="text"]:focus,
-input[type="password"]:focus {
+input[type="password"]:focus,
+input:not([type]):focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);

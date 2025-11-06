@@ -406,20 +406,22 @@ function OwnerItem({ o, active, onSelect, onChanged }) {
 
   return (
     <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-      <a href={`#`} onClick={(e)=>{ e.preventDefault(); onSelect(o.slug); }} className={`owner-item ${active ? 'active' : ''}`} style={{ flex: 1 }}>
-        {editing ? (
-          <form onSubmit={save} className="row" style={{ gap: 6 }}>
-            <input value={name} onChange={(e)=>setName(e.target.value)} style={{ flex: 1 }} />
+      {editing ? (
+        <div className={`owner-item ${active ? 'active' : ''}`} style={{ flex: 1 }}>
+          <form onSubmit={save} className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+            <input type="text" value={name} onChange={(e)=>setName(e.target.value)} style={{ flex: '1 1 auto', minWidth: 140, maxWidth: '100%' }} />
             <button className="btn-sm" disabled={busy}>{busy ? '저장중' : '✓'}</button>
             <button type="button" className="btn-sm btn-danger-light" onClick={()=>{ setEditing(false); setName(o.name); }}>✕</button>
           </form>
-        ) : (
+        </div>
+      ) : (
+        <a href={`#`} onClick={(e)=>{ e.preventDefault(); onSelect(o.slug); }} className={`owner-item ${active ? 'active' : ''}`} style={{ flex: 1 }}>
           <span>{isDefault ? '기타' : o.name}</span>
-        )}
-      </a>
+        </a>
+      )}
       {!editing && (
         <div className="row" style={{ gap: 6 }}>
-          <button className="btn-sm" style={{ background: 'var(--gray-100)', color: 'var(--gray-700)' }} onClick={()=>setEditing(true)}>✏️</button>
+          <button className="btn-sm btn-ghost" onClick={()=>setEditing(true)}>✏️</button>
           <button className="btn-sm btn-danger-light" disabled={isDefault} onClick={remove}>🗑️</button>
         </div>
       )}
