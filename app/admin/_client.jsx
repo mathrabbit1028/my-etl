@@ -282,22 +282,20 @@ function TopicCard({ topic, onChanged, onMoveUp, onMoveDown, canMoveUp, canMoveD
 
 function OwnerAdder({ onAdded }) {
   const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function add(e) {
     e.preventDefault();
-    if (!name.trim() || !slug.trim()) return;
+    if (!name.trim()) return;
     setBusy(true);
     try {
       const res = await fetch('/api/owners', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), slug: slug.trim() })
+        body: JSON.stringify({ name: name.trim() })
       });
       if (!res.ok) throw new Error('추가 실패');
       setName('');
-      setSlug('');
       onAdded && onAdded();
     } catch (e) {
       alert(e.message);
@@ -309,7 +307,6 @@ function OwnerAdder({ onAdded }) {
   return (
     <form onSubmit={add} className="grid" style={{ gap: 8, marginTop: 12 }}>
       <input placeholder="이름 (예: 홍길동)" value={name} onChange={(e)=>setName(e.target.value)} />
-      <input placeholder="슬러그 (예: hong)" value={slug} onChange={(e)=>setSlug(e.target.value)} />
       <button type="submit" disabled={busy} className="btn-sm">{busy ? '추가 중...' : '사람 추가'}</button>
     </form>
   );
