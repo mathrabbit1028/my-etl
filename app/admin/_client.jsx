@@ -202,12 +202,7 @@ function TopicCard({ topic, onChanged, onMoveUp, onMoveDown, canMoveUp, canMoveD
 
   return (
     <section className="card" style={{ marginBottom: 20 }}>
-      <div style={{ 
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16
-      }}>
+      <div className="row-between" style={{ marginBottom: 16 }}>
         <div style={{ flex: 1 }}>
           {editing ? (
             <div className="row" style={{ gap: 8 }}>
@@ -229,39 +224,28 @@ function TopicCard({ topic, onChanged, onMoveUp, onMoveDown, canMoveUp, canMoveD
               <h2 style={{ margin: 0, fontSize: 20, display: 'inline-block', marginRight: 12 }}>
                 📁 {topic.title}
               </h2>
-              <button 
-                onClick={() => setEditing(true)} 
-                style={{ fontSize: 13, padding: '4px 10px', background: 'var(--gray-100)', color: 'var(--gray-700)' }}
-              >
-                ✏️ 수정
-              </button>
+              <button onClick={() => setEditing(true)} className="btn-sm btn-ghost">✏️ 수정</button>
             </div>
           )}
           <p className="small muted" style={{ margin: '4px 0 0 0' }}>
             {topic.materials.length}개 자료 · 마지막 수정: {new Date(topic.created_at).toLocaleDateString('ko-KR')}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="toolbar">
           <select 
             value={ownerSlug}
             onChange={(e)=>changeTopicOwner(e.target.value)}
             disabled={changingOwner}
-            style={{ padding: '6px 8px', border: '1px solid var(--gray-300)', borderRadius: 6, fontSize: 13 }}
+            className="select-sm"
             title="이 토픽의 사람 변경"
           >
             {owners.map(o => (
-              <option key={o.id} value={o.slug}>{o.slug==='default' ? '미지정' : o.name}</option>
+              <option key={o.id} value={o.slug}>{o.slug==='default' ? '기타' : o.name}</option>
             ))}
           </select>
-          <button onClick={onMoveUp} disabled={!canMoveUp} className="btn-sm" style={{ background: 'var(--gray-100)', color: 'var(--gray-700)' }}>
-            ↑
-          </button>
-          <button onClick={onMoveDown} disabled={!canMoveDown} className="btn-sm" style={{ background: 'var(--gray-100)', color: 'var(--gray-700)' }}>
-            ↓
-          </button>
-          <button onClick={delTopic} className="btn-danger-light" style={{ padding: '8px 16px' }}>
-            🗑️ 삭제
-          </button>
+          <button onClick={onMoveUp} disabled={!canMoveUp} className="btn-sm btn-ghost">↑</button>
+          <button onClick={onMoveDown} disabled={!canMoveDown} className="btn-sm btn-ghost">↓</button>
+          <button onClick={delTopic} className="btn-sm btn-danger-light">🗑️ 삭제</button>
         </div>
       </div>
       
@@ -288,7 +272,7 @@ function TopicCard({ topic, onChanged, onMoveUp, onMoveDown, canMoveUp, canMoveD
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div className="toolbar" style={{ gap: 12 }}>
                   {m.file_type?.includes('pdf') && (
                     <a href={`/viewer?id=${m.id}`} style={{ fontSize: 14 }}>
                       👁️ PDF 보기
@@ -336,7 +320,7 @@ function OwnerSelectForMaterial({ owners, currentOwner, materialId, onChanged })
   return (
     <select value={currentOwner} onChange={onChangeOwner} disabled={busy} style={{ padding: '6px 8px', border: '1px solid var(--gray-300)', borderRadius: 6, fontSize: 13 }} title="파일의 사람 변경 (새 사람의 미분류로 이동)">
       {owners.map(o => (
-        <option key={o.id} value={o.slug}>{o.slug==='default' ? '미지정' : o.name}</option>
+  <option key={o.id} value={o.slug}>{o.slug==='default' ? '기타' : o.name}</option>
       ))}
     </select>
   );
@@ -430,7 +414,7 @@ function OwnerItem({ o, active, onSelect, onChanged }) {
             <button type="button" className="btn-sm btn-danger-light" onClick={()=>{ setEditing(false); setName(o.name); }}>✕</button>
           </form>
         ) : (
-          <span>{isDefault ? '미지정' : o.name}</span>
+          <span>{isDefault ? '기타' : o.name}</span>
         )}
       </a>
       {!editing && (

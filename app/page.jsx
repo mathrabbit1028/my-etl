@@ -24,7 +24,7 @@ export default async function HomePage({ searchParams }) {
           <div className="grid" style={{ gap: 8 }}>
             {owners.map(o => (
               <a key={o.id} href={`/?owner=${o.slug}`} className={`owner-item ${o.slug===owner ? 'active' : ''}`}>
-                {o.slug === 'default' ? '미지정' : o.name}
+                {o.slug === 'default' ? '기타' : o.name}
               </a>
             ))}
           </div>
