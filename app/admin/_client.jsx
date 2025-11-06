@@ -2,7 +2,7 @@
 import { useOptimistic, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
-function TopicForm({ onCreated }) {
+function TopicForm({ onCreated, owner = 'default' }) {
   const [title, setTitle] = useState('');
   const [pending, startTransition] = useTransition();
 
@@ -12,7 +12,7 @@ function TopicForm({ onCreated }) {
     const res = await fetch('/api/topics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title })
+      body: JSON.stringify({ title, owner })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -280,13 +280,125 @@ function TopicCard({ topic, onChanged, onMoveUp, onMoveDown, canMoveUp, canMoveD
   );
 }
 
-export default function AdminClient({ initialTopics }) {
+function OwnerAdder({ onAdded }) {
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function add(e) {
+    e.preventDefault();
+    if (!name.trim() || !slug.trim()) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/owners', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), slug: slug.trim() })
+      });
+      if (!res.ok) throw new Error('추가 실패');
+      setName('');
+      setSlug('');
+      onAdded && onAdded();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={add} className="grid" style={{ gap: 8, marginTop: 12 }}>
+      <input placeholder="이름 (예: 홍길동)" value={name} onChange={(e)=>setName(e.target.value)} />
+      <input placeholder="슬러그 (예: hong)" value={slug} onChange={(e)=>setSlug(e.target.value)} />
+      <button type="submit" disabled={busy} className="btn-sm">{busy ? '추가 중...' : '사람 추가'}</button>
+    </form>
+  );
+}
+
+function OwnerItem({ o, active, onSelect, onChanged }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(o.name);
+  const [busy, setBusy] = useState(false);
+  const isDefault = o.slug === 'default';
+
+  async function save(e) {
+    e?.preventDefault?.();
+    if (!name.trim()) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/owners/${o.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim() })
+      });
+      if (!res.ok) throw new Error('수정 실패');
+      setEditing(false);
+      onChanged && onChanged();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (isDefault) return;
+    if (!confirm('사람을 삭제하시겠습니까? 해당 사람의 토픽은 기본 소유자로 이동합니다.')) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/owners/${o.id}`, { method: 'DELETE' });
+      const ok = res.ok;
+      if (!ok) {
+        let msg = '삭제 실패';
+        try { const j = await res.json(); if (j?.error) msg += `: ${j.error}`; } catch {}
+        throw new Error(msg);
+      }
+      onChanged && onChanged();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+      <a href={`#`} onClick={(e)=>{ e.preventDefault(); onSelect(o.slug); }} style={{
+        padding: '8px 10px',
+        borderRadius: 6,
+        background: active ? 'var(--gray-100)' : 'transparent',
+        color: 'var(--gray-900)',
+        flex: 1
+      }}>
+        {editing ? (
+          <form onSubmit={save} className="row" style={{ gap: 6 }}>
+            <input value={name} onChange={(e)=>setName(e.target.value)} style={{ flex: 1 }} />
+            <button className="btn-sm" disabled={busy}>{busy ? '저장중' : '✓'}</button>
+            <button type="button" className="btn-sm btn-danger-light" onClick={()=>{ setEditing(false); setName(o.name); }}>✕</button>
+          </form>
+        ) : (
+          <span>{o.name}</span>
+        )}
+      </a>
+      {!editing && (
+        <div className="row" style={{ gap: 6 }}>
+          <button className="btn-sm" style={{ background: 'var(--gray-100)', color: 'var(--gray-700)' }} onClick={()=>setEditing(true)}>✏️</button>
+          <button className="btn-sm btn-danger-light" disabled={isDefault} onClick={remove}>🗑️</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function AdminClient({ initialOwners = [], initialOwner = 'default', initialTopics }) {
   const router = useRouter();
   const [topics, setTopics] = useState(initialTopics);
+  const [owners, setOwners] = useState(initialOwners);
+  const [owner, setOwner] = useState(initialOwner);
   const [reordering, setReordering] = useState(false);
 
   async function refresh() {
-    const res = await fetch('/api/topics');
+    const res = await fetch(`/api/topics?owner=${owner}`);
     const data = await res.json();
     setTopics(data.topics || []);
     router.refresh();
@@ -344,35 +456,51 @@ export default function AdminClient({ initialTopics }) {
         </button>
       </div>
 
-      <TopicForm onCreated={refresh} />
+      <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 16 }}>
+        <aside className="card" style={{ padding: 12 }}>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>사람</div>
+          <div className="grid" style={{ gap: 8 }}>
+            {owners.map(o => (
+              <OwnerItem 
+                key={o.id} 
+                o={o} 
+                active={o.slug === owner} 
+                onSelect={(slug)=>{ setOwner(slug); history.replaceState(null, '', `/admin?owner=${slug}`); refresh(); }} 
+                onChanged={async ()=>{ const r = await fetch('/api/owners'); const j = await r.json(); setOwners(j.owners||[]); if (!j.owners?.some(ow=>ow.slug===owner)) { setOwner('default'); history.replaceState(null, '', `/admin?owner=default`); } await refresh(); }} 
+              />
+            ))}
+          </div>
+          <OwnerAdder onAdded={async ()=>{ const r = await fetch('/api/owners'); const j = await r.json(); setOwners(j.owners||[]); }} />
+        </aside>
 
-      {topics.length === 0 ? (
-        <div className="card" style={{ 
-          textAlign: 'center', 
-          padding: 60, 
-          background: 'white'
-        }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>📚</div>
-          <p style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--gray-900)' }}>
-            아직 토픽이 없습니다
-          </p>
-          <p style={{ margin: '8px 0 0 0', fontSize: 14, color: 'var(--gray-600)' }}>
-            상단의 "새 토픽 추가"에서 첫 번째 토픽을 만들어보세요
-          </p>
+        <div className="grid" style={{ gap: 16 }}>
+          <TopicForm onCreated={refresh} owner={owner} />
+
+          {topics.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: 60, background: 'white' }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>📚</div>
+              <p style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--gray-900)' }}>
+                아직 토픽이 없습니다
+              </p>
+              <p style={{ margin: '8px 0 0 0', fontSize: 14, color: 'var(--gray-600)' }}>
+                좌측에서 사람을 선택하거나 새 토픽을 추가하세요
+              </p>
+            </div>
+          ) : (
+            topics.map((t, idx) => (
+              <TopicCard 
+                key={t.id} 
+                topic={t} 
+                onChanged={refresh}
+                onMoveUp={() => moveTopicUp(idx)}
+                onMoveDown={() => moveTopicDown(idx)}
+                canMoveUp={idx > 0 && !reordering}
+                canMoveDown={idx < topics.length - 1 && !reordering}
+              />
+            ))
+          )}
         </div>
-      ) : (
-        topics.map((t, idx) => (
-          <TopicCard 
-            key={t.id} 
-            topic={t} 
-            onChanged={refresh}
-            onMoveUp={() => moveTopicUp(idx)}
-            onMoveDown={() => moveTopicDown(idx)}
-            canMoveUp={idx > 0 && !reordering}
-            canMoveDown={idx < topics.length - 1 && !reordering}
-          />
-        ))
-      )}
+      </div>
     </div>
   );
 }
