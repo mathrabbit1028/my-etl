@@ -22,8 +22,11 @@ export async function POST(request) {
   }
 
   const safeName = originalName.replace(/[^a-zA-Z0-9_.가-힣-]+/g, '_');
-  const uploadUrl = `https://blob.vercel-storage.com/upload?filename=${encodeURIComponent(safeName)}`;
-
-  // Return minimal info for client direct upload
-  return NextResponse.json({ uploadUrl, token, fileName: safeName, contentType });
+  // Root endpoint (no /upload path) avoids 405; client will set x-vercel-filename header.
+  return NextResponse.json({
+    uploadEndpoint: 'https://blob.vercel-storage.com',
+    token,
+    fileName: safeName,
+    contentType
+  });
 }

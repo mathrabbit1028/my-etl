@@ -64,13 +64,15 @@ function MaterialUploader({ topicId, onChanged }) {
         const meta = await metaRes.json();
         if (!metaRes.ok) throw new Error(meta.error || 'URL 발급 실패');
         // 2. POST file directly to Blob with progress
-        const uploaded = await new Promise((resolve, reject) => {
+        const sendWithMethod = (method) => new Promise((resolve, reject) => {
           try {
             const xhr = new XMLHttpRequest();
             xhrRef.current = xhr;
-            xhr.open('POST', meta.uploadUrl, true);
+            xhr.open(method, meta.uploadEndpoint, true);
             xhr.setRequestHeader('Content-Type', meta.contentType || 'application/octet-stream');
             xhr.setRequestHeader('Authorization', `Bearer ${meta.token}`);
+            xhr.setRequestHeader('x-vercel-filename', meta.fileName);
+            xhr.setRequestHeader('x-vercel-blob-public', 'true');
             xhr.upload.onprogress = (ev) => {
               if (ev.lengthComputable) {
                 const pct = Math.max(0, Math.min(100, Math.round((ev.loaded / ev.total) * 100)));
@@ -85,7 +87,7 @@ function MaterialUploader({ topicId, onChanged }) {
                   try { resolve(JSON.parse(xhr.responseText || '{}')); }
                   catch { resolve({}); }
                 } else {
-                  reject(new Error(`업로드 실패 (${xhr.status})`));
+                  reject(Object.assign(new Error(`업로드 실패 (${xhr.status})`), { status: xhr.status }));
                 }
               }
             };
@@ -94,6 +96,17 @@ function MaterialUploader({ topicId, onChanged }) {
             reject(err);
           }
         });
+        let uploaded;
+        try {
+          uploaded = await sendWithMethod('POST');
+        } catch (err) {
+          if (err?.status === 405) {
+            // Fallback to PUT if POST not allowed
+            uploaded = await sendWithMethod('PUT');
+          } else {
+            throw err;
+          }
+        }
         const blobUrl = uploaded?.url || uploaded?.downloadUrl || uploaded?.pathname || null;
         if (!blobUrl) throw new Error('Blob URL 없음');
         // 3. Save material metadata
