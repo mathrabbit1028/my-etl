@@ -55,62 +55,57 @@ function MaterialUploader({ topicId, onChanged }) {
     setProgress(0);
     try {
       const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks (reduced to avoid 413)
-      const LARGE_THRESHOLD = CHUNK_SIZE; // 기존 기준 재사용
-      const useDirect = file.size > LARGE_THRESHOLD; // 큰 파일은 direct blob 업로드
+      const LARGE_THRESHOLD = CHUNK_SIZE;
+      const useChunked = file.size > LARGE_THRESHOLD;
 
-      if (useDirect) {
-        // 1) 업로드 URL 발급
-        const urlRes = await fetch('/api/upload-url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ originalName: file.name, contentType: file.type })
-        });
-        const urlJson = await urlRes.json();
-        if (!urlRes.ok) throw new Error(urlJson.error || 'URL 발급 실패');
-        const { uploadUrl, token, fileName, contentType } = urlJson;
-        if (!uploadUrl || !token) throw new Error('직접 업로드 정보 누락');
-
-        // 2) Blob Store로 직접 업로드 (fetch + progress는 XHR로 대체)
-        await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.upload.onprogress = (ev) => {
-            if (ev.lengthComputable) {
-              setProgress(Math.round((ev.loaded / ev.total) * 100));
-            }
-          };
-          xhr.onerror = () => reject(new Error('직접 업로드 네트워크 오류'));
-          xhr.onabort = () => reject(new Error('업로드 취소됨'));
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve(null);
-            } else {
-              reject(new Error(`직접 업로드 실패 (${xhr.status})`));
-            }
-          };
-          xhr.open('POST', uploadUrl);
-          xhr.setRequestHeader('x-vercel-bucket-write-token', token);
-          xhr.setRequestHeader('x-vercel-filename', fileName);
-          xhr.send(file);
-        });
-
-        // Blob 응답은 location 헤더(url) 또는 body JSON을 줄 수 있음 -> fetch로 한번 더 확인 (간단화: uploadUrl 구조로 유추)
-        // 안전하게 새 URL 조회 필요시 SDK/정식 API 사용 가능. 여기선 업로드 경로 규칙상 동일 파일명 public URL 가정.
-        // 3) DB 등록
-        const publicUrl = `https://blob.vercel-storage.com/${encodeURIComponent(fileName)}`;
-        const regRes = await fetch('/api/materials/register', {
+      if (useChunked) {
+        // Chunked upload for large files (DB-backed, server-side finalize)
+        const initRes = await fetch('/api/materials/upload-init', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            topicId,
-            title: title.trim() || file.name,
-            fileName,
-            fileType: contentType || file.type,
+            fileName: file.name,
             fileSize: file.size,
-            blobUrl: publicUrl
+            fileType: file.type,
+            topicId,
+            title: title.trim() || file.name
           })
         });
-        const regJson = await regRes.json();
-        if (!regRes.ok) throw new Error(regJson.error || '등록 실패');
+        const initJson = await initRes.json();
+        if (!initRes.ok) throw new Error(initJson.error || '세션 초기화 실패');
+        const { uploadId } = initJson;
+        if (!uploadId) throw new Error('uploadId 누락');
+
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const chunk = file.slice(start, end);
+
+          const fd = new FormData();
+          fd.set('uploadId', uploadId);
+          fd.set('chunkIndex', String(i));
+          fd.set('chunk', chunk);
+
+          const chunkRes = await fetch('/api/materials/upload-chunk', {
+            method: 'POST',
+            body: fd
+          });
+          if (!chunkRes.ok) {
+            const j = await chunkRes.json().catch(()=>({}));
+            throw new Error(j.error || `청크 ${i} 업로드 실패`);
+          }
+
+          setProgress(Math.round(((i + 1) / totalChunks) * 100));
+        }
+
+        const finalRes = await fetch('/api/materials/upload-finalize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uploadId })
+        });
+        const finalJson = await finalRes.json().catch(()=>({}));
+        if (!finalRes.ok) throw new Error(finalJson.error || '완료 처리 실패');
       } else {
         // 작은 파일은 기존 단일 업로드 API 사용
         const fd = new FormData();

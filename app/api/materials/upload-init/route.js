@@ -2,8 +2,7 @@ export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { isAdminFromRequest } from '../../../../lib/auth';
 import { randomUUID } from 'crypto';
-import { mkdir, writeFile } from 'fs/promises';
-import path from 'path';
+import { createUploadSession } from '../../../../lib/db';
 
 // Initialize chunked upload session
 export async function POST(request) {
@@ -16,23 +15,17 @@ export async function POST(request) {
   }
 
   const uploadId = randomUUID();
-
-  // Persist session metadata to a temp folder to avoid losing state across requests
-  // Note: /tmp is writable on most serverless platforms; adjust as needed for self-hosted.
-  const baseDir = path.join('/tmp', 'uploads', uploadId);
   try {
-    await mkdir(baseDir, { recursive: true });
-    const meta = {
+    await createUploadSession({
+      id: uploadId,
       fileName,
-      fileSize,
       fileType: fileType || 'application/octet-stream',
+      fileSize,
       topicId: Number(topicId),
-      title: title || fileName,
-      createdAt: Date.now()
-    };
-    await writeFile(path.join(baseDir, 'meta.json'), JSON.stringify(meta));
+      title: title || fileName
+    });
   } catch (e) {
-    return NextResponse.json({ error: 'Failed to initialize upload session' }, { status: 500 });
+    return NextResponse.json({ error: e?.message || 'Failed to initialize upload session' }, { status: 500 });
   }
 
   return NextResponse.json({ uploadId });

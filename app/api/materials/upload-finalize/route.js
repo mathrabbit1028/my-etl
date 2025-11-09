@@ -3,9 +3,7 @@ export const maxDuration = 60;
 import { NextResponse } from 'next/server';
 import { isAdminFromRequest } from '../../../../lib/auth';
 import { put } from '@vercel/blob';
-import { createMaterial } from '../../../../lib/db';
-import { readdir, readFile, unlink, rm, stat } from 'fs/promises';
-import path from 'path';
+import { createMaterial, getUploadSession, listUploadChunks, deleteUploadSession } from '../../../../lib/db';
 
 // Finalize chunked upload: assemble chunks and upload to Blob
 export async function POST(request) {
@@ -17,34 +15,25 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Missing uploadId' }, { status: 400 });
   }
 
-  const baseDir = path.join('/tmp', 'uploads', uploadId);
-  // Load metadata and available chunks from disk
-  let session;
-  try {
-    const metaPath = path.join(baseDir, 'meta.json');
-    await stat(metaPath); // throws if not exists
-    const metaRaw = await readFile(metaPath, 'utf-8');
-    session = JSON.parse(metaRaw);
-  } catch {
+  const session = await getUploadSession(uploadId);
+  if (!session) {
     return NextResponse.json({ error: 'Upload session not found' }, { status: 404 });
   }
 
   try {
-    // Assemble chunks in order from files on disk
-    const files = await readdir(baseDir);
-    const partFiles = files.filter(f => f.endsWith('.part'));
-    if (partFiles.length === 0) {
+    // Fetch chunks from DB and assemble
+    const chunkRows = await listUploadChunks(uploadId);
+    if (chunkRows.length === 0) {
       return NextResponse.json({ error: 'No chunks uploaded' }, { status: 400 });
     }
-    const chunkIndexes = partFiles
-      .map(f => Number(f.replace('.part', '')))
-      .filter(n => Number.isFinite(n))
-      .sort((a, b) => a - b);
-    const buffers = [];
-    for (const idx of chunkIndexes) {
-      const buf = await readFile(path.join(baseDir, `${idx}.part`));
-      buffers.push(buf);
+    // Ensure contiguous from 0..n-1
+    const sorted = chunkRows.sort((a,b)=>a.chunk_index - b.chunk_index);
+    for (let i=0;i<sorted.length;i++) {
+      if (sorted[i].chunk_index !== i) {
+        return NextResponse.json({ error: 'Missing chunk index '+i }, { status: 400 });
+      }
     }
+    const buffers = sorted.map(r => r.data);
     const completeFile = Buffer.concat(buffers);
 
     // Upload to Vercel Blob
@@ -69,15 +58,8 @@ export async function POST(request) {
       blobUrl: uploaded.url
     });
 
-    // Cleanup session directory
-    try {
-      // Remove part files and meta
-      const filesToRemove = await readdir(baseDir);
-      await Promise.all(filesToRemove.map(async (f) => {
-        try { await unlink(path.join(baseDir, f)); } catch {}
-      }));
-      await rm(baseDir, { recursive: true, force: true });
-    } catch {}
+    // Cleanup session & chunks
+    try { await deleteUploadSession(uploadId); } catch {}
 
     return NextResponse.json({ material });
   } catch (e) {
