@@ -45,130 +45,52 @@ function MaterialUploader({ topicId, onChanged }) {
   const [title, setTitle] = useState('');
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [directMode, setDirectMode] = useState(true); // enable direct upload by default
   const [progress, setProgress] = useState(0);
-  const xhrRef = useRef(null);
 
   async function upload(e) {
     e.preventDefault();
     if (!file) return;
+    
+    // Client-side size check (50MB limit recommended)
+    const MAX_SIZE = 50 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      alert(`파일 크기가 ${Math.round(MAX_SIZE/1024/1024)}MB를 초과합니다. (현재: ${(file.size/1024/1024).toFixed(1)}MB)`);
+      return;
+    }
+
     setBusy(true);
+    setProgress(0);
     try {
-      if (directMode) {
-        // 1. Request direct upload URL & token
-        const metaRes = await fetch('/api/upload-url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ originalName: file.name, contentType: file.type })
-        });
-        const meta = await metaRes.json();
-        if (!metaRes.ok) throw new Error(meta.error || 'URL 발급 실패');
-        // 2. POST file directly to Blob with progress
-        const sendPrimary = () => new Promise((resolve, reject) => {
-          try {
-            const xhr = new XMLHttpRequest();
-            xhrRef.current = xhr;
-            // Primary: /upload URL with bucket write token header (CORS optimized)
-            xhr.open('POST', meta.uploadUrl, true);
-            xhr.setRequestHeader('Content-Type', meta.contentType || 'application/octet-stream');
-            xhr.setRequestHeader('x-vercel-bucket-write-token', meta.token);
-            xhr.setRequestHeader('x-vercel-blob-public', 'true');
-            xhr.upload.onprogress = (ev) => {
-              if (ev.lengthComputable) {
-                const pct = Math.max(0, Math.min(100, Math.round((ev.loaded / ev.total) * 100)));
-                setProgress(pct);
-              }
-            };
-            xhr.onerror = () => reject(new Error('업로드 실패'));
-            xhr.onabort = () => reject(new Error('업로드 취소됨'));
-            xhr.onreadystatechange = () => {
-              if (xhr.readyState === 4) {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                  try { resolve(JSON.parse(xhr.responseText || '{}')); }
-                  catch { resolve({}); }
-                } else {
-                  reject(Object.assign(new Error(`업로드 실패 (${xhr.status})`), { status: xhr.status }));
-                }
-              }
-            };
-            xhr.send(file);
-          } catch (err) {
-            reject(err);
+      const fd = new FormData();
+      fd.set('topicId', String(topicId));
+      fd.set('title', title.trim() || file.name);
+      fd.set('file', file);
+      
+      // Use XHR for progress tracking
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) {
+            const pct = Math.max(0, Math.min(100, Math.round((ev.loaded / ev.total) * 100)));
+            setProgress(pct);
           }
-        });
-        const sendFallback = () => new Promise((resolve, reject) => {
-          try {
-            const xhr = new XMLHttpRequest();
-            xhrRef.current = xhr;
-            xhr.open('POST', meta.uploadEndpoint, true); // root endpoint
-            xhr.setRequestHeader('Content-Type', meta.contentType || 'application/octet-stream');
-            xhr.setRequestHeader('Authorization', `Bearer ${meta.token}`);
-            xhr.setRequestHeader('x-vercel-filename', meta.fileName);
-            xhr.setRequestHeader('x-vercel-blob-public', 'true');
-            xhr.upload.onprogress = (ev) => {
-              if (ev.lengthComputable) {
-                const pct = Math.max(0, Math.min(100, Math.round((ev.loaded / ev.total) * 100)));
-                setProgress(pct);
-              }
-            };
-            xhr.onerror = () => reject(new Error('업로드 실패'));
-            xhr.onabort = () => reject(new Error('업로드 취소됨'));
-            xhr.onreadystatechange = () => {
-              if (xhr.readyState === 4) {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                  try { resolve(JSON.parse(xhr.responseText || '{}')); }
-                  catch { resolve({}); }
-                } else {
-                  reject(new Error(`업로드 실패 (${xhr.status})`));
-                }
-              }
-            };
-            xhr.send(file);
-          } catch (err) {
-            reject(err);
-          }
-        });
-        let uploaded;
-        try {
-          uploaded = await sendPrimary();
-        } catch (err) {
-          // Fallback on 405 or CORS/network (status 0)
-          if (err?.status === 405 || err?.status === 0) {
-            uploaded = await sendFallback();
+        };
+        xhr.onerror = () => reject(new Error('네트워크 오류'));
+        xhr.onabort = () => reject(new Error('업로드 취소됨'));
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(xhr.responseText);
           } else {
-            throw err;
+            reject(new Error(`업로드 실패 (${xhr.status})`));
           }
-        }
-        const blobUrl = uploaded?.url || uploaded?.downloadUrl || uploaded?.pathname || null;
-        if (!blobUrl) throw new Error('Blob URL 없음');
-        // 3. Save material metadata
-        const saveRes = await fetch('/api/materials', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            topicId,
-            title: title.trim() || file.name,
-            fileName: file.name,
-            fileType: file.type || 'application/octet-stream',
-            fileSize: file.size,
-            blobUrl
-          })
-        });
-        const saved = await saveRes.json();
-        if (!saveRes.ok) throw new Error(saved.error || '메타 저장 실패');
-      } else {
-        // fallback: legacy server-side multipart
-        const fd = new FormData();
-        fd.set('topicId', String(topicId));
-        fd.set('title', title.trim());
-        fd.set('file', file);
-        const save = await fetch('/api/materials/upload', { method: 'POST', body: fd });
-        if (!save.ok) throw new Error('업로드 실패');
-      }
+        };
+        xhr.open('POST', '/api/materials/upload');
+        xhr.send(fd);
+      });
+
       setTitle('');
       setFile(null);
       setProgress(0);
-      xhrRef.current = null;
       onChanged && onChanged();
     } catch (e) {
       console.error('UPLOAD_ERROR', e);
@@ -176,13 +98,6 @@ function MaterialUploader({ topicId, onChanged }) {
     } finally {
       setBusy(false);
     }
-  }
-
-  function cancelUpload() {
-    try { xhrRef.current?.abort(); } catch {}
-    setBusy(false);
-    setProgress(0);
-    xhrRef.current = null;
   }
 
   return (
@@ -228,16 +143,10 @@ function MaterialUploader({ topicId, onChanged }) {
             className="btn-success"
             style={{ padding: '10px 16px', fontWeight: 600, flex: 1 }}
           >
-            {busy ? (progress>0 ? `⏳ 업로드 ${progress}%` : '⏳ 업로드 준비중...') : file ? (directMode ? '📤 Direct 업로드' : '📤 서버 업로드') : '파일을 선택하세요'}
+            {busy ? (progress>0 ? `⏳ 업로드 ${progress}%` : '⏳ 업로드 준비중...') : file ? '📤 업로드' : '파일을 선택하세요'}
           </button>
-          <button type="button" className="btn-sm btn-ghost" disabled={busy} onClick={()=>setDirectMode(m=>!m)}>
-            {directMode ? '⇄ 서버 방식' : '⇄ Direct'}
-          </button>
-          {directMode && busy && progress>0 && (
-            <button type="button" className="btn-sm btn-danger-light" onClick={cancelUpload}>취소</button>
-          )}
         </div>
-        {directMode && busy && (
+        {busy && progress > 0 && (
           <div className="grid" style={{ gap: 4 }}>
             <div className="progress"><div className="bar" style={{ width: `${progress}%` }} /></div>
             <div className="progress-text">{progress}%</div>

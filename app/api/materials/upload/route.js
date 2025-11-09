@@ -1,4 +1,5 @@
 export const runtime = 'nodejs';
+export const maxDuration = 60; // Allow up to 60 seconds for large uploads
 import { NextResponse } from 'next/server';
 import { isAdminFromRequest } from '../../../../lib/auth';
 import { put } from '@vercel/blob';
