@@ -50,43 +50,82 @@ function MaterialUploader({ topicId, onChanged }) {
   async function upload(e) {
     e.preventDefault();
     if (!file) return;
-    
-    // Client-side size check (50MB limit recommended)
-    const MAX_SIZE = 50 * 1024 * 1024;
-    if (file.size > MAX_SIZE) {
-      alert(`파일 크기가 ${Math.round(MAX_SIZE/1024/1024)}MB를 초과합니다. (현재: ${(file.size/1024/1024).toFixed(1)}MB)`);
-      return;
-    }
 
     setBusy(true);
     setProgress(0);
     try {
-      const fd = new FormData();
-      fd.set('topicId', String(topicId));
-      fd.set('title', title.trim() || file.name);
-      fd.set('file', file);
-      
-      // Use XHR for progress tracking
-      await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.upload.onprogress = (ev) => {
-          if (ev.lengthComputable) {
-            const pct = Math.max(0, Math.min(100, Math.round((ev.loaded / ev.total) * 100)));
-            setProgress(pct);
-          }
-        };
-        xhr.onerror = () => reject(new Error('네트워크 오류'));
-        xhr.onabort = () => reject(new Error('업로드 취소됨'));
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve(xhr.responseText);
-          } else {
-            reject(new Error(`업로드 실패 (${xhr.status})`));
-          }
-        };
-        xhr.open('POST', '/api/materials/upload');
-        xhr.send(fd);
-      });
+      const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+      const useChunked = file.size > CHUNK_SIZE;
+
+      if (useChunked) {
+        // Chunked upload for large files
+        const initRes = await fetch('/api/materials/upload-init', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type,
+            topicId,
+            title: title.trim() || file.name
+          })
+        });
+        const { uploadId } = await initRes.json();
+        if (!initRes.ok || !uploadId) throw new Error('세션 초기화 실패');
+
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const chunk = file.slice(start, end);
+
+          const fd = new FormData();
+          fd.set('uploadId', uploadId);
+          fd.set('chunkIndex', String(i));
+          fd.set('chunk', chunk);
+
+          const chunkRes = await fetch('/api/materials/upload-chunk', {
+            method: 'POST',
+            body: fd
+          });
+          if (!chunkRes.ok) throw new Error(`청크 ${i} 업로드 실패`);
+
+          setProgress(Math.round(((i + 1) / totalChunks) * 100));
+        }
+
+        const finalRes = await fetch('/api/materials/upload-finalize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uploadId })
+        });
+        if (!finalRes.ok) throw new Error('완료 처리 실패');
+      } else {
+        // Single request for small files
+        const fd = new FormData();
+        fd.set('topicId', String(topicId));
+        fd.set('title', title.trim() || file.name);
+        fd.set('file', file);
+
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.upload.onprogress = (ev) => {
+            if (ev.lengthComputable) {
+              setProgress(Math.round((ev.loaded / ev.total) * 100));
+            }
+          };
+          xhr.onerror = () => reject(new Error('네트워크 오류'));
+          xhr.onabort = () => reject(new Error('업로드 취소됨'));
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(xhr.responseText);
+            } else {
+              reject(new Error(`업로드 실패 (${xhr.status})`));
+            }
+          };
+          xhr.open('POST', '/api/materials/upload');
+          xhr.send(fd);
+        });
+      }
 
       setTitle('');
       setFile(null);
