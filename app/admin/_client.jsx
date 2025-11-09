@@ -64,14 +64,14 @@ function MaterialUploader({ topicId, onChanged }) {
         const meta = await metaRes.json();
         if (!metaRes.ok) throw new Error(meta.error || 'URL 발급 실패');
         // 2. POST file directly to Blob with progress
-        const sendWithMethod = (method) => new Promise((resolve, reject) => {
+        const sendPrimary = () => new Promise((resolve, reject) => {
           try {
             const xhr = new XMLHttpRequest();
             xhrRef.current = xhr;
-            xhr.open(method, meta.uploadEndpoint, true);
+            // Primary: /upload URL with bucket write token header (CORS optimized)
+            xhr.open('POST', meta.uploadUrl, true);
             xhr.setRequestHeader('Content-Type', meta.contentType || 'application/octet-stream');
-            xhr.setRequestHeader('Authorization', `Bearer ${meta.token}`);
-            xhr.setRequestHeader('x-vercel-filename', meta.fileName);
+            xhr.setRequestHeader('x-vercel-bucket-write-token', meta.token);
             xhr.setRequestHeader('x-vercel-blob-public', 'true');
             xhr.upload.onprogress = (ev) => {
               if (ev.lengthComputable) {
@@ -96,13 +96,45 @@ function MaterialUploader({ topicId, onChanged }) {
             reject(err);
           }
         });
+        const sendFallback = () => new Promise((resolve, reject) => {
+          try {
+            const xhr = new XMLHttpRequest();
+            xhrRef.current = xhr;
+            xhr.open('POST', meta.uploadEndpoint, true); // root endpoint
+            xhr.setRequestHeader('Content-Type', meta.contentType || 'application/octet-stream');
+            xhr.setRequestHeader('Authorization', `Bearer ${meta.token}`);
+            xhr.setRequestHeader('x-vercel-filename', meta.fileName);
+            xhr.setRequestHeader('x-vercel-blob-public', 'true');
+            xhr.upload.onprogress = (ev) => {
+              if (ev.lengthComputable) {
+                const pct = Math.max(0, Math.min(100, Math.round((ev.loaded / ev.total) * 100)));
+                setProgress(pct);
+              }
+            };
+            xhr.onerror = () => reject(new Error('업로드 실패'));
+            xhr.onabort = () => reject(new Error('업로드 취소됨'));
+            xhr.onreadystatechange = () => {
+              if (xhr.readyState === 4) {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  try { resolve(JSON.parse(xhr.responseText || '{}')); }
+                  catch { resolve({}); }
+                } else {
+                  reject(new Error(`업로드 실패 (${xhr.status})`));
+                }
+              }
+            };
+            xhr.send(file);
+          } catch (err) {
+            reject(err);
+          }
+        });
         let uploaded;
         try {
-          uploaded = await sendWithMethod('POST');
+          uploaded = await sendPrimary();
         } catch (err) {
-          if (err?.status === 405) {
-            // Fallback to PUT if POST not allowed
-            uploaded = await sendWithMethod('PUT');
+          // Fallback on 405 or CORS/network (status 0)
+          if (err?.status === 405 || err?.status === 0) {
+            uploaded = await sendFallback();
           } else {
             throw err;
           }

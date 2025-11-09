@@ -23,8 +23,11 @@ export async function POST(request) {
 
   const safeName = originalName.replace(/[^a-zA-Z0-9_.가-힣-]+/g, '_');
   // Root endpoint (no /upload path) avoids 405; client will set x-vercel-filename header.
+  // Provide both styles for client fallback (primary /upload URL, fallback root endpoint)
+  const uploadUrl = `https://blob.vercel-storage.com/upload?filename=${encodeURIComponent(safeName)}`;
   return NextResponse.json({
-    uploadEndpoint: 'https://blob.vercel-storage.com',
+    uploadUrl, // preferred: POST with x-vercel-bucket-write-token (CORS-friendly)
+    uploadEndpoint: 'https://blob.vercel-storage.com', // fallback root
     token,
     fileName: safeName,
     contentType
