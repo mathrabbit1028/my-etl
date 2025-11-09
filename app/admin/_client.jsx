@@ -54,7 +54,7 @@ function MaterialUploader({ topicId, onChanged }) {
     setBusy(true);
     setProgress(0);
     try {
-      const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+      const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks (reduced to avoid 413)
       const useChunked = file.size > CHUNK_SIZE;
 
       if (useChunked) {
