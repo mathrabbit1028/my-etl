@@ -42,18 +42,26 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing BLOB_READ_WRITE_TOKEN' }, { status: 500 });
     }
 
-    const uploaded = await put(session.fileName, completeFile, {
+    // Map DB fields (snake_case) to variables expected by Blob/Material creation
+    const pathname = String(session.file_name || '').trim();
+    const contentType = String(session.file_type || 'application/octet-stream');
+    const topicId = Number(session.topic_id);
+    if (!pathname) {
+      return NextResponse.json({ error: 'Invalid file_name in session' }, { status: 500 });
+    }
+
+    const uploaded = await put(pathname, completeFile, {
       access: 'public',
-      contentType: session.fileType,
+      contentType,
       token
     });
 
     // Save to DB
     const material = await createMaterial({
-      topicId: session.topicId,
+      topicId,
       title: session.title,
-      fileName: session.fileName,
-      fileType: session.fileType,
+      fileName: pathname,
+      fileType: contentType,
       fileSize: completeFile.length,
       blobUrl: uploaded.url
     });
