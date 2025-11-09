@@ -1,6 +1,8 @@
 export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { isAdminFromRequest } from '../../../../lib/auth';
+import { mkdir, writeFile, stat } from 'fs/promises';
+import path from 'path';
 
 // Receive and store a file chunk
 export async function POST(request) {
@@ -16,15 +18,22 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Missing uploadId, chunkIndex, or chunk' }, { status: 400 });
   }
 
-  global.uploadSessions = global.uploadSessions || {};
-  const session = global.uploadSessions[uploadId];
-  if (!session) {
-    return NextResponse.json({ error: 'Upload session not found' }, { status: 404 });
+  // Write chunk to temp directory so we don't rely on in-memory globals
+  try {
+    const baseDir = path.join('/tmp', 'uploads', uploadId);
+    // Ensure session exists by checking meta.json
+    try {
+      await stat(path.join(baseDir, 'meta.json'));
+    } catch {
+      return NextResponse.json({ error: 'Upload session not found' }, { status: 404 });
+    }
+    await mkdir(baseDir, { recursive: true });
+    const arrayBuffer = await chunkBlob.arrayBuffer();
+    const buf = Buffer.from(arrayBuffer);
+    const chunkPath = path.join(baseDir, `${chunkIndex}.part`);
+    await writeFile(chunkPath, buf);
+    return NextResponse.json({ received: chunkIndex });
+  } catch (e) {
+    return NextResponse.json({ error: e?.message || 'Failed to write chunk' }, { status: 500 });
   }
-
-  // Store chunk as Buffer
-  const arrayBuffer = await chunkBlob.arrayBuffer();
-  session.chunks[chunkIndex] = Buffer.from(arrayBuffer);
-
-  return NextResponse.json({ received: chunkIndex });
 }
